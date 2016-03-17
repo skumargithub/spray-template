@@ -1,6 +1,6 @@
 package com.example
 
-import akka.actor.Actor
+import akka.actor.{Actor, Props}
 import spray.routing._
 import spray.http._
 import MediaTypes._
@@ -13,12 +13,36 @@ class MyServiceActor extends Actor with MyService {
   // connects the services environment to the enclosing actor or test
   def actorRefFactory = context
 
+  val childRequestHandlerActor = actorRefFactory.actorOf(Props[ChildRequestHandlerActor], "child-actor")
+
+  val childRoutes =
+    path("fruit") {
+      get { ctx =>
+        childRequestHandlerActor ! GetFruit(ctx)
+      }
+    }
+
+
   // this actor only runs our route, but you could add
   // other things here, like request stream processing
   // or timeout handling
-  def receive = runRoute(myRoute)
+  def receive = runRoute(childRoutes ~ myRoute)
 }
 
+case class GetFruit(ctx: RequestContext)
+
+class ChildRequestHandlerActor extends Actor {
+
+  private val fruits = Array("apple", "banana", "pear", "strawberry", "orange", "peach")
+  private val rndm = scala.util.Random
+
+  // this actor only runs our route, but you could add
+  // other things here, like request stream processing
+  // or timeout handling
+  def receive = {
+    case GetFruit(ctx) => ctx.complete(s"Have this fruit ${fruits(rndm.nextInt(fruits.length))} from child")
+  }
+}
 
 // this trait defines our service behavior independently from the service actor
 trait MyService extends HttpService {
